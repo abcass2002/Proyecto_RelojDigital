@@ -6,7 +6,7 @@
 ; Programa:	Contador binario 8 BITS	
 ;
 ; Creado:	22 feb 2022
-; Última modificación: 26 feb 2022
+; Última modificación: 22 feb 2022
     
 PROCESSOR 16F887
     
@@ -48,10 +48,6 @@ PSECT udata_bank0
     banderas:		DS 1	; Indica que display hay que encender
     nibbles:		DS 2	; Contiene los nibbles alto y bajo de valor
     display:		DS 2	; Representación de cada nibble en el display de 7-seg
-    contador:           DS 1
-    unidades:           DS 1
-    decenas:            DS 1
-    centenas:           DS 1
 
 ; ------- VARIABLES EN MEMORIA --------
 PSECT udata_shr		    ; Memoria compartida
@@ -88,9 +84,7 @@ POP:
     RETFIE		    ; Regresamos a ciclo principal
     
 INT_TMR0:
-    RESET_TMR0 
-    
-    ; Reiniciamos TMR0 para 50ms
+    RESET_TMR0 131		; Reiniciamos TMR0 para 50ms
     CALL    MOSTRAR_VALOR	; Mostramos valor en hexadecimal en los displays
     RETURN  
 INT_IOCB:
@@ -117,55 +111,28 @@ MAIN:
     
 LOOP:
     MOVF    PORTA, W		; Valor del PORTA a W
-    MOVWF   unidades		; Movemos W a variable valor
-    CALL    uni
-    CALL    dece
+    ;movlw   1
+    MOVWF   valor		; Movemos W a variable valor
     CALL    OBTENER_NIBBLE	; Guardamos nibble alto y bajo de valor
     CALL    SET_DISPLAY		; Guardamos los valores a enviar en PORTC para mostrar valor en hex
     GOTO    LOOP
-uni:
-    
-    MOVLW 10
-    SUBWF unidades, W
-    BTFSS STATUS, 2
-    RETURN
-    CLRF unidades
-    INCF decenas
-    RETURN
-    
-dece:
-    MOVLW 10
-    SUBWF decenas, W
-    BTFSS STATUS, 2
-    RETURN
-    CLRF decenas
-    INCF centenas
-    RETURN
-cent:
-    MOVLW 10
-    SUBWF decenas, W
-    BTFSS STATUS, 2
-    RETURN
-    CLRF centenas
-    INCF centenas
-    RETURN
-    
+
 CONFIG_RELOJ:
     BANKSEL OSCCON		; cambiamos a banco 1
     BSF	    OSCCON, 0		; SCS -> 1, Usamos reloj interno
     BCF	    OSCCON, 6
-    BCF	    OSCCON, 5
-    BCF	    OSCCON, 4		; IRCF<2:0> -> 110 1MHz
+    BSF	    OSCCON, 5
+    BSF	    OSCCON, 4		; IRCF<2:0> -> 110 1MHz
     RETURN
     
 CONFIG_TMR0:
     BANKSEL OPTION_REG		; cambiamos de banco
     BCF	    T0CS		; TMR0 como temporizador
     BCF	    PSA			; prescaler a TMR0
-    BSF	    PS2
+    BCF	    PS2
     BCF	    PS1
-    BCF	    PS0			; PS<2:0> -> 100 prescaler 1 : 3
-    RESET_TMR0 132		; Reiniciamos TMR0 para 2ms
+    BCF	    PS0			; PS<2:0> -> 111 prescaler 1 : 2
+    RESET_TMR0 131		; Reiniciamos TMR0 para 2ms
     RETURN 
     
 CONFIG_IO:
@@ -193,9 +160,6 @@ CONFIG_IO:
     BCF	    PORTD, 1		; Apagamos RD1
     BCF	    PORTD, 2		; Apagamos RD2
     CLRF    PORTA		; Apagamos PORTA
-    CLRF    unidades
-    CLRF    decenas
-    CLRF    centenas
     CLRF    banderas		; Limpiamos GPR
     
     RETURN
@@ -221,23 +185,26 @@ CONFIG_IO:
     
   OBTENER_NIBBLE:			;    Ejemplo:
 				; Obtenemos nibble bajo
-    MOVF    unidades, W
+    MOVLW   0x0F		;    Valor = 1101 0101
+    ANDWF   valor, W		;	 AND 0000 1111
     MOVWF   nibbles		;	     0000 0101	
 				; Obtenemos nibble alto
-    MOVF    decenas, W
+    MOVLW   0xF0		;     Valor = 1101 0101
+    ANDWF   valor, W		;	  AND 1111 0000
     MOVWF   nibbles+1		;	      1101 0000
+    SWAPF   nibbles+1, F	;	      0000 1101	
     RETURN
     
 SET_DISPLAY:
     MOVF    nibbles, W		; Movemos nibble bajo a W
     CALL    TABLA_7SEG		; Buscamos valor a cargar en PORT
     MOVWF   display		; Guardamos en display
+    ;COMF    display
     
-    MOVLW   0    
-    ;MOVF    nibbles+1, W	; Movemos nibble alto a W
+    MOVF    nibbles+1, W	; Movemos nibble alto a W
     CALL    TABLA_7SEG		; Buscamos valor a cargar en PORTC
     MOVWF   display+1		; Guardamos en display+1
-   
+    ;COMF    display+1
     RETURN
     
   MOSTRAR_VALOR:
@@ -261,8 +228,6 @@ SET_DISPLAY:
 	BSF	PORTD, 0	; Encendemos display de nibble alto
 	BCF	banderas, 0	; Cambiamos bandera para cambiar el otro display en la siguiente interrupción
     RETURN
-    
-	
     
  
     ORG 200h
